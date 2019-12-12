@@ -1,4 +1,5 @@
-from flask import Blueprint, jsonify, render_template
+from flask import Blueprint, jsonify, render_template, request
+from requests_oauthlib import OAuth2Session
 import requests
 
 mod = Blueprint('fork_repo', __name__)
@@ -7,34 +8,22 @@ mod = Blueprint('fork_repo', __name__)
 def test_route():
    return {'result': 'Hitting the fork_repo blueprint'}
 
-@mod.route('/callback', methods=['GET'])
-def oauth_callback():
-   return {'result': 'Callback from oauth'}
+@mod.route('/login')
+def login():
+   client_id = 'app client id from github'
+   authorization_base_url = 'https://github.com/login/oauth/authorize'
+   github = OAuth2Session(client_id)
+   authorization_url, state = github.authorization_url(authorization_base_url)
+   return {'authorizationLink': authorization_url}
 
-@mod.route('/user_repos/<username>', methods=['GET'])
-def get_repos(username):
-   endpoint_url = 'https://api.github.com/users'
-   url = endpoint_url + '/' + username + '/repos'
-   repos = {}
-   r = requests.get(url, params= {'u':'keenmckenzie:a1e9f9793dc0a08ddf426e546a168068b031ee5c'})
-   response_json = r.json()
-   for repo in response_json:
-     name = repo['name']
-     git_url = repo['git_url']
-     repos[name] = git_url
-   return jsonify({'repos': repos})
-
-@mod.route('/fork_repo/<account>/<repo>', methods=['GET'])
-def fork_repo(account, repo):
-   endpoint_url = 'https://api.github.com/repos/'+account+ '/' + repo + '/forks'
-   result = {}
-   r = requests.post(endpoint_url, auth = ('keenmckenzie', 'a1e9f9793dc0a08ddf426e546a168068b031ee5c'))
-   response_json = r.json()
-   result['success'] = 'true'
-   result['name'] = response_json['name']
-   result['url'] = response_json['clone_url']
-   return jsonify({'repo': result})
-
-@mod.route('/test_template', methods=['GET'])
-def test_template():
-   return render_template('home.html')
+@mod.route('/login/githubRedirect')
+def auth():
+   client_id = 'app client id from github'
+   client_secret = 'app client secret from github'
+   redirect_response = request.url
+   github = OAuth2Session(client_id)
+   token_url = 'https://github.com/login/oauth/access_token'
+   github.fetch_token(token_url, client_secret=client_secret, authorization_response=redirect_response)
+   r = github.get('https://api.github.com/user')
+   return r.content
+ 
